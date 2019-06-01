@@ -21,11 +21,11 @@ public:
     Chord(ParametrsStruct parametrsStruct) {
         this->tau = parametrsStruct.tau;
         this->h = parametrsStruct.h;
-        this->node = parametrsStruct.node;
         this->L = parametrsStruct.L;
         this->t0 = parametrsStruct.t0;
         this->T = parametrsStruct.T;
         this->a = parametrsStruct.a;
+        this->node = parametrsStruct.node;
         this->test_index = parametrsStruct.test_index;
         for(int i = 0; i < node; i++){
             this->initial_speed.push_back(0.0);
@@ -50,7 +50,6 @@ public:
                      this->initial_deviation[i] = temp;
                      //this->fxx[i] = Fxx;
                  }
-                 fxx[0] = fxx[node-1] = 0.0;
                  break;
              }
              case(2):{
@@ -72,14 +71,23 @@ public:
                  }
                  break;
              }
+             case(4):{
+                 for(int i = 0; i < node; i++){
+                     temp = 0.0;
+                     //Fxx = i*h;
+                     this->initial_deviation[i] = temp;
+                     //this->fxx[i] = Fxx;
+                 }
+                 break;
+             }
          }
      }
     void FxxCalculations(){
          this->fxx[0] = 0;
-         this->fxx[node-1] = 0;
          for(int i = 1; i < node-1; i++) {
              this->fxx[i] = (initial_deviation[i + 1] - 2 * initial_deviation[i] + initial_deviation[i - 1]) / (h * h);
          }
+        this->fxx[node-1] = 0;
      }
 
      void initialSpeed(){
@@ -106,6 +114,12 @@ public:
                  }
                  break;
              }
+             case(4):{
+                 for(int i = 0; i < node; i++) {
+                     temp = 0.0;
+                     this->g[i] = temp;
+                 }
+             }
 
          }
      }
@@ -125,6 +139,8 @@ public:
                  return 0.0;
              case(3):
                  return 1.0;
+             case(4):
+                 return 0.0;
          }
 
         }
@@ -136,6 +152,8 @@ public:
                     return 0.0;
                 case(3):
                     return 0.5 + 3.0*t;
+                case(4):
+                    return (sin(2.0*t));
             }
         }
 
@@ -160,8 +178,8 @@ public:
          vector<double> y_previous(node), y_current(node), y_next(node);
          double t = t0 + 2.0*tau,
                 courant_num = tau*tau*a*a/(h*h),
-                temp,
-                temp1;
+                temp = 0.0,
+                temp1 = 0.0;
          int layer_num = 3;
 
           for(int i = 0; i < node; i++){
@@ -170,25 +188,35 @@ public:
           for(int i = 1; i < node-1; i++){
             y_current[i] = initial_speed[i];
           }
-                y_current[0] = fi(t-tau);
-                y_current[node-1] = psi(t-tau);
+            y_current[0] = fi(t-tau);
+            y_current[node-1] = psi(t-tau);
 
          do {
 
              y_next[0] = fi(t);
-             for(int i = 1; i < node - 1; i++){
+             /*for(int i = 1; i < node - 1; i++){
                  temp = (y_current[i+1] - 2 * y_current[i] + y_current[i-1])/(h*h);
                  temp1 = temp + (2 * y_current[i] - y_previous[i])/(tau*tau);
                  y_next[i] = temp1*(tau*tau);
-             }
+             }*/
              y_next[node - 1] = psi(t);
 
+
+             for(int i = 1; i < node - 1; i++){
+                 temp = y_current[i+1] - 2 * y_current[i] + y_current[i-1];
+                 temp1 = courant_num*temp + 2 * y_current[i] - y_previous[i];
+                 y_next[i] = temp1;
+             }
+
              errorLabTest(y_next, t, layer_num);
+
              for(int i = 0; i < node; i++) {
                  y_previous[i] = y_current[i];
                  y_current[i] = y_next[i];
              }
+
              fileOutPutLayer(layer_num, y_next);
+
              layer_num++;
              t += tau;
          } while(t <= T);
@@ -205,7 +233,7 @@ public:
                          x = i*h;
                      }
                  }
-                 if(abs(t - 0.1) < eps){
+                 if(abs(t - 0.3) < eps){
                      cout << "B момент времени t == " << t << " ошибка равна "<< maxError <<endl;
                      cout << "Максимум ошибки получен в точке " << x <<endl;
                  }
@@ -239,6 +267,8 @@ public:
                  break;
              }
              case(3):
+                 break;
+             case(4):
                  break;
          }
      }

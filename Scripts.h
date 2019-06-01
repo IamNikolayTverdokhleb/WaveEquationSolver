@@ -22,6 +22,9 @@ public:
             case(3):
                 system("../Results/Test3");
                 break;
+            case(4):
+                system("../Results/Test4");
+                break;
         }
 
     }
