@@ -65,20 +65,36 @@ public:
              case(3):{
                  for(int i = 0; i < node; i++){
                      temp = 0.5*(1 + i*i*h*h);
-                     //Fxx = i*h;
                      this->initial_deviation[i] = temp;
-                     //this->fxx[i] = Fxx;
                  }
                  break;
              }
              case(4):{
                  for(int i = 0; i < node; i++){
                      temp = 0.0;
-                     //Fxx = i*h;
                      this->initial_deviation[i] = temp;
-                     //this->fxx[i] = Fxx;
                  }
                  break;
+             }
+             case(5):{
+                 for(int i = 0; i < node; i++){
+                     if (abs(-2 + i*h) <= 0.166666666) {
+                         temp = 1.0;
+                         this->initial_deviation[i] = temp;
+                     }
+                     else{
+                         temp = 0.0;
+                         this->initial_deviation[i] = temp;
+                     }
+                 }
+                 break;
+             }
+             case(6):{
+                 for(int i = 0; i < node; i++) {
+                     temp = 0.0;
+                     this->initial_deviation[i] = temp;
+                 }
+                 fileOutPutLayer(0, initial_deviation);
              }
          }
      }
@@ -93,34 +109,29 @@ public:
      void initialSpeed(){
          double temp;
          switch (test_index) {
-             case(1): {
-                 for (int i = 0; i < node; i++) {
-                     temp = 0.0;
-                     this->g[i] = temp;
-                 }
-                 break;
-             }
-             case(2):{
+             default:{
                  for(int i = 0; i < node; i++){
                      temp = 0.0;
-                     this->g[i] = temp;
-                 }
-                 break;
+                     this->g[i] =  temp;
+                 }break;
              }
              case(3):{
                  for(int i = 0; i < node; i++){
-                     temp = i * h * sin(2 * i * h);;
+                     temp = i * h * sin(2 * i * h);
                      this->g[i] =  temp;
-                 }
-                 break;
+                 }break;
              }
-             case(4):{
+             case(6):{
                  for(int i = 0; i < node; i++) {
-                     temp = 0.0;
-                     this->g[i] = temp;
+                     if (abs(-1 + i * h) <= 0.25) {
+                         temp = 1.0 - 5.0*abs(-1 + i * h);
+                         this->initial_deviation[i] = temp;
+                     } else {
+                         temp = 0.0;
+                         this->initial_deviation[i] = temp;
+                            }
                  }
-             }
-
+             }break;
          }
      }
      void initialDeviationSecond(){
@@ -129,9 +140,10 @@ public:
              temp = initial_deviation[i] + tau * g[i] + tau*tau*a*a*fxx[i]/2.0;
              this->initial_speed[i] = temp;
          }
+         fileOutPutLayer(1, initial_speed);
      }
 
-        double psi(double t){     //Функция для Г.У. на правом конце
+        double psi(double t, double y_next){     //Функция для ГУ на правом конце
          switch (test_index){
              case(1):
                  return 0.0;
@@ -140,11 +152,15 @@ public:
              case(3):
                  return 1.0;
              case(4):
-                 return 0.0;
+                 return -sin(2.0*t);
+             case(5):
+                 return y_next; //Для ГУ второго рода
+             case(6):
+                 return y_next;
          }
 
         }
-        double fi(double t) {      //Функция для граничного условия на левом конце
+        double fi(double t, double y_next) {      //Функция для ГУ на левом конце
             switch (test_index){
                 case(1):
                     return 0.0;
@@ -153,15 +169,36 @@ public:
                 case(3):
                     return 0.5 + 3.0*t;
                 case(4):
-                    return (sin(2.0*t));
+                    return sin(2.0*t);
+                case(5):
+                    return y_next;
+                case(6):
+                    return y_next;
             }
         }
 
      void fileOutPutLayer(int layer_num, vector<double> y_next){
          auto layer_number = to_string(layer_num);
          ofstream LayerOutput("../Results/" + layer_number + ".txt");
-         for(int i = 0; i < node; i++){
-             LayerOutput << i*h << "\t\t" << y_next[i] <<endl;
+         switch(test_index) {
+             default: {
+                 for (int i = 0; i < node; i++) {
+                     LayerOutput << i * h << "\t\t" << y_next[i] << endl;
+                 }
+                 break;
+             }
+             case(5):{
+                 for (int i = 0; i < node; i++) {
+                     LayerOutput << -2.0 + i * h << "\t\t" << y_next[i] << endl;
+                 }
+                 break;
+             }
+             case(6):{
+                 for (int i = 0; i < node; i++) {
+                     LayerOutput << -1.0 + i * h << "\t\t" << y_next[i] << endl;
+                 }
+                 break;
+             }
          }
      }
      void stabilityCheck(){
@@ -180,7 +217,7 @@ public:
                 courant_num = tau*tau*a*a/(h*h),
                 temp = 0.0,
                 temp1 = 0.0;
-         int layer_num = 3;
+         int layer_num = 2;
 
           for(int i = 0; i < node; i++){
              y_previous[i] = initial_deviation[i];
@@ -188,25 +225,18 @@ public:
           for(int i = 1; i < node-1; i++){
             y_current[i] = initial_speed[i];
           }
-            y_current[0] = fi(t-tau);
-            y_current[node-1] = psi(t-tau);
+            y_current[0] = fi(t-tau, y_current[0]);
+            y_current[node-1] = psi(t-tau, y_current[node-2]);
 
          do {
-
-             y_next[0] = fi(t);
-             /*for(int i = 1; i < node - 1; i++){
-                 temp = (y_current[i+1] - 2 * y_current[i] + y_current[i-1])/(h*h);
-                 temp1 = temp + (2 * y_current[i] - y_previous[i])/(tau*tau);
-                 y_next[i] = temp1*(tau*tau);
-             }*/
-             y_next[node - 1] = psi(t);
-
 
              for(int i = 1; i < node - 1; i++){
                  temp = y_current[i+1] - 2 * y_current[i] + y_current[i-1];
                  temp1 = courant_num*temp + 2 * y_current[i] - y_previous[i];
                  y_next[i] = temp1;
              }
+             y_next[0] = fi(t, y_next[1]);
+             y_next[node - 1] = psi(t, y_next[node-2]);
 
              errorLabTest(y_next, t, layer_num);
 
@@ -243,7 +273,7 @@ public:
              case (2): {
                  double  u, x;
                  int k = 0.0;
-                 k = int(0.5 * sqrt(2 / (M_PI * M_PI * eps)) - 1);
+                 k = int(0.5 * sqrt(2 / (M_PI * M_PI * eps))-1.0);
                  //cout << "k = " << k << endl;
                  for (int j = 0; j < node; j++) {
                      x = j * h;
@@ -259,7 +289,7 @@ public:
                          coord = j*h;
                      }
                  }
-                 if(abs(t - 0.1) < eps){
+                 if(abs(t - 0.3) < eps){
                      cout << "B момент времени t == " << t << " ошибка равна "<< maxError <<endl;
                      cout << "Максимум ошибки получен в точке " << coord <<endl;
                  }
@@ -269,6 +299,10 @@ public:
              case(3):
                  break;
              case(4):
+                 break;
+             case(5):
+                 break;
+             case(6):
                  break;
          }
      }
@@ -289,7 +323,7 @@ private:
     vector<double>  initial_speed; //значения на втором слое
     vector<double>  fxx;//вторая производная начального распределения
     vector<double>  g; //начальная скорость струны
-    const  double eps = pow(10,-8);
+    const  double eps = pow(10,-10);
 };
 
 
